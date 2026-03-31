@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Search · Transcript Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface: #131318;
+    --surface2: #1a1a22;
+    --border: #2a2a35;
+    --text: #e8e6f0;
+    --text-dim: #8b8998;
+    --accent: #ff3b5c;
+    --accent2: #7c5cff;
+    --accent-glow: rgba(255, 59, 92, 0.15);
+    --accent2-glow: rgba(124, 92, 255, 0.15);
+    --green: #34d399;
+    --radius: 12px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'Space Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Ambient background ── */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -40%; left: -20%;
+    width: 80vw; height: 80vw;
+    background: radial-gradient(circle, rgba(124,92,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -30%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, rgba(255,59,92,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  .header {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 48px 24px 32px;
+  }
+  .header h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 700;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header p {
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-size: 0.9rem;
+  }
+
+  /* ── Search bar ── */
+  .search-wrap {
+    position: relative; z-index: 1;
+    max-width: 680px;
+    margin: 0 auto 40px;
+    padding: 0 24px;
+  }
+  .search-box {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 60px;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .search-box:focus-within {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 3px var(--accent2-glow), 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .search-box input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 1rem;
+    padding: 16px 24px;
+  }
+  .search-box input::placeholder { color: var(--text-dim); }
+  .search-box button {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff;
+    font-family: var(--font);
+    font-weight: 600;
+    padding: 16px 28px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: opacity 0.2s;
+  }
+  .search-box button:hover { opacity: 0.85; }
+
+  /* ── Status ── */
+  .status {
+    position: relative; z-index: 1;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+    min-height: 24px;
+  }
+
+  /* ── Video Grid ── */
+  .grid {
+    position: relative; z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    animation: cardIn 0.4s ease both;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent2);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--accent2-glow);
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--surface2);
+  }
+  .card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s;
+  }
+  .card:hover .card-thumb img { transform: scale(1.05); }
+
+  .card-dur {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .card-body { padding: 16px; }
+
+  .card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .card-meta {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .card-meta span + span::before {
+    content: ' · ';
+    color: var(--border);
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+  .btn-summary:hover {
+    border-color: var(--accent2);
+    background: var(--accent2-glow);
+    color: var(--accent2);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* ── Load more ── */
+  .load-more-wrap {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 32px 24px 64px;
+  }
+  .btn-load-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 36px;
+    border-radius: 60px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .btn-load-more:hover {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 3px var(--accent2-glow);
+  }
+  .btn-load-more:disabled { opacity: 0.4; cursor: wait; }
+
+  /* ── Modal overlay ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: fadeIn 0.25s ease;
+  }
+  .modal-overlay.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    padding-right: 16px;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .modal-close:hover { color: var(--accent); }
+
+  .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    line-height: 1.7;
+    font-size: 0.92rem;
+  }
+  .modal-body .loading-msg {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 40px 0;
+  }
+  .modal-body .error-msg {
+    color: var(--accent);
+    text-align: center;
+    padding: 24px 0;
+  }
+
+  /* Markdown-ish rendering */
+  .modal-body strong, .modal-body b { color: var(--accent); font-weight: 600; }
+  .modal-body ul, .modal-body ol { padding-left: 20px; margin: 8px 0; }
+  .modal-body li { margin: 4px 0; }
+  .modal-body p { margin: 8px 0; }
+
+  .modal-footer {
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .header { padding: 32px 16px 20px; }
+    .search-wrap { padding: 0 16px; margin-bottom: 28px; }
+    .sort-bar { padding: 0 16px; }
+  }
+
+  /* ── Sort bar ── */
+  .sort-bar {
+    position: relative; z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto 20px;
+    padding: 0 24px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sort-bar.active { display: flex; }
+  .sort-label {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+  .sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sort-btn:hover {
+    border-color: var(--accent2);
+    color: var(--text);
+  }
+  .sort-btn.active {
+    border-color: var(--accent2);
+    background: var(--accent2-glow);
+    color: var(--accent2);
+  }
+  .sort-btn svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>▶ YT Search</h1>
+  <p>YouTube Videos suchen · Transcripts zusammenfassen</p>
+</div>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="YouTube durchsuchen …" autofocus>
+    <button id="searchBtn" onclick="doSearch()">Suchen</button>
+  </div>
+</div>
+
+<div class="status" id="status"></div>
+
+<div class="sort-bar" id="sortBar">
+  <span class="sort-label">Sortieren:</span>
+  <button class="sort-btn active" data-sort="relevance" onclick="setSort('relevance')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Relevanz
+  </button>
+  <button class="sort-btn" data-sort="views-desc" onclick="setSort('views-desc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4M5 11l7-7 7 7"/></svg>
+    Views ↓
+  </button>
+  <button class="sort-btn" data-sort="views-asc" onclick="setSort('views-asc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M5 13l7 7 7-7"/></svg>
+    Views ↑
+  </button>
+  <button class="sort-btn" data-sort="date-desc" onclick="setSort('date-desc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Neueste
+  </button>
+  <button class="sort-btn" data-sort="date-asc" onclick="setSort('date-asc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Älteste
+  </button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="load-more-wrap" id="loadMoreWrap" style="display:none">
+  <button class="btn-load-more" id="loadMoreBtn" onclick="loadMore()">
+    Mehr laden
+  </button>
+</div>
+
+<!-- Summary Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Zusammenfassung</h2>
+      <button class="modal-close" onclick="closeModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody">
+    </div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let currentQuery = '';
+let continuation = '';
+let hasMore = false;
+let allVideos = [];
+let currentSort = 'relevance';
+
+// ── Search ──
+const input = document.getElementById('searchInput');
+input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+async function doSearch() {
+  const q = input.value.trim();
+  if (!q) return;
+  currentQuery = q;
+  continuation = '';
+  allVideos = [];
+  currentSort = 'relevance';
+  updateSortButtons();
+  document.getElementById('grid').innerHTML = '';
+  document.getElementById('loadMoreWrap').style.display = 'none';
+  document.getElementById('sortBar').classList.remove('active');
+  await fetchPage();
+}
+
+async function loadMore() {
+  await fetchPage();
+}
+
+async function fetchPage() {
+  const status = document.getElementById('status');
+  const btn = document.getElementById('loadMoreBtn');
+  status.innerHTML = '<span class="spinner"></span> Suche läuft …';
+  btn.disabled = true;
+
+  try {
+    let url = `/api/search?q=${encodeURIComponent(currentQuery)}`;
+    if (continuation) {
+      url += `&continuation=${encodeURIComponent(continuation)}`;
+    }
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (data.error) {
+      status.textContent = `Fehler: ${data.error}`;
+      return;
+    }
+
+    hasMore = data.has_more;
+    continuation = data.continuation || '';
+    allVideos = allVideos.concat(data.videos);
+
+    document.getElementById('sortBar').classList.add('active');
+    applySort();
+
+    status.textContent = `${allVideos.length} Ergebnisse für "${currentQuery}"`;
+    document.getElementById('loadMoreWrap').style.display = hasMore ? 'block' : 'none';
+  } catch (err) {
+    status.textContent = `Netzwerkfehler: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Sort ──
+function setSort(sort) {
+  currentSort = sort;
+  updateSortButtons();
+  applySort();
+}
+
+function updateSortButtons() {
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === currentSort);
+  });
+}
+
+// Convert relative date text ("vor 2 Wochen", "2 weeks ago") to sortable days-ago number
+function relativeToDays(text) {
+  if (!text) return 99999;
+  const t = text.toLowerCase();
+  const num = parseInt(t.replace(/[^\d]/g, '')) || 1;
+  if (t.includes('stunde') || t.includes('hour'))   return num / 24;
+  if (t.includes('minute'))                          return num / 1440;
+  if (t.includes('tag') || t.includes('day'))        return num;
+  if (t.includes('woche') || t.includes('week'))     return num * 7;
+  if (t.includes('monat') || t.includes('month'))    return num * 30;
+  if (t.includes('jahr') || t.includes('year'))      return num * 365;
+  return 99999;
+}
+
+function applySort() {
+  let sorted = [...allVideos];
+  switch (currentSort) {
+    case 'views-desc':
+      sorted.sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+      break;
+    case 'views-asc':
+      sorted.sort((a, b) => (a.view_count || 0) - (b.view_count || 0));
+      break;
+    case 'date-desc':
+      sorted.sort((a, b) => relativeToDays(a.published) - relativeToDays(b.published));
+      break;
+    case 'date-asc':
+      sorted.sort((a, b) => relativeToDays(b.published) - relativeToDays(a.published));
+      break;
+  }
+  document.getElementById('grid').innerHTML = '';
+  renderVideos(sorted);
+}
+
+// ── Render ──
+function renderVideos(videos) {
+  const grid = document.getElementById('grid');
+  videos.forEach((v, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = `${i * 0.06}s`;
+
+    const thumb = v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+
+    card.innerHTML = `
+      <div class="card-thumb">
+        <img src="${thumb}" alt="" loading="lazy"
+             onerror="this.src='https://i.ytimg.com/vi/${v.id}/hqdefault.jpg'">
+        ${v.duration ? `<span class="card-dur">${v.duration}</span>` : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>
+        <div class="card-meta">
+          <span>${escHtml(v.channel)}</span>
+          ${v.views ? `<span>${v.views}</span>` : ''}
+          ${v.published ? `<span>${escHtml(v.published)}</span>` : ''}
+        </div>
+        <div class="card-actions">
+          <a class="btn" href="${v.url}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Öffnen
+          </a>
+          <button class="btn btn-summary" onclick="getSummary('${v.id}', this)" data-title="${escAttr(v.title)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Summary
+          </button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ── Summary ──
+async function getSummary(videoId, btnEl) {
+  const title = btnEl.getAttribute('data-title') || 'Video';
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<span class="spinner"></span> Lädt …';
+
+  // Open modal
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalFooter = document.getElementById('modalFooter');
+
+  modalTitle.textContent = title;
+  modalBody.innerHTML = '<div class="loading-msg"><span class="spinner"></span><br><br>Transcript wird geladen und zusammengefasst …<br><small>Das kann 10–30 Sekunden dauern.</small></div>';
+  modalFooter.textContent = '';
+  modal.classList.add('active');
+
+  try {
+    const resp = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id: videoId, title: title })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      modalBody.innerHTML = `<div class="error-msg">⚠ ${escHtml(data.error)}</div>`;
+      return;
+    }
+
+    // Render summary (simple markdown-like conversion)
+    modalBody.innerHTML = renderMarkdown(data.summary);
+    modalFooter.innerHTML = `
+      <span>Model: ${escHtml(data.model)}</span>
+      <span>Transcript: ${(data.transcript_length / 1000).toFixed(1)}k Zeichen</span>
+    `;
+
+  } catch (err) {
+    modalBody.innerHTML = `<div class="error-msg">⚠ Netzwerkfehler: ${escHtml(err.message)}</div>`;
+  } finally {
+    btnEl.disabled = false;
+    btnEl.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Summary
+    `;
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+// Close on overlay click
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+// Close on Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── Helpers ──
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+function escAttr(s) {
+  return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function renderMarkdown(text) {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
+    .replace(/(<li>.*<\/li>)/gs, m => `<ul>${m}</ul>`)
+    .replace(/<\/ul>\s*<ul>/g, '')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>').replace(/$/, '</p>');
+}
+</script>
+
+</body>
+</html>
